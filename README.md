@@ -56,3 +56,9 @@ To run tests, run the following command:
 ```
 forge test
 ```
+
+## Deploy
+
+```
+npx thirdweb deploy
+```
