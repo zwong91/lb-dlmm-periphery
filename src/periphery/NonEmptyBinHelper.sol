@@ -81,6 +81,83 @@ library NonEmptyBinHelper {
     }
 
     /**
+     * @dev Optimized version of getPopulatedBinsId that uses dynamic memory allocation to prevent memory overflow.
+     * Uses progressive allocation to avoid allocating massive amounts of memory upfront.
+     * @param pair The liquidity book pair.
+     * @param start The start bin id.
+     * @param end The end bin id. (inclusive)
+     * @param length The number of non-empty bins to fetch. (optional)
+     * @return ids The non-empty bins ids.
+     */
+    function getPopulatedBinsIdOptimized(ILBPair pair, uint24 start, uint24 end, uint24 length)
+        internal
+        view
+        returns (bytes memory)
+    {
+        (start, end) = start < end
+            ? (start == 0 ? (0, end) : (start - 1, end))
+            : (start == type(uint24).max ? (end, start) : (start + 1, end));
+
+        // Start with a reasonable initial capacity
+        uint256 initialCapacity = 1000;
+        if (length != 0 && length < initialCapacity) {
+            initialCapacity = length;
+        }
+        
+        bytes memory ids = new bytes(initialCapacity * 3);
+        uint256 populatedBinCount = 0;
+        uint256 capacity = initialCapacity;
+
+        uint24 id = start;
+        bool swapForY = start > end;
+        
+        for (uint256 i; (length == 0 || populatedBinCount < length); ++i) {
+            id = pair.getNextNonEmptyBin(swapForY, id);
+
+            if (swapForY ? id < end || id == type(uint24).max : id > end || id == 0) break;
+
+            // Check if we need to expand capacity
+            if (populatedBinCount >= capacity) {
+                // Double the capacity, but cap at a reasonable maximum per expansion
+                uint256 newCapacity = capacity * 2;
+                if (newCapacity > capacity + 5000) {
+                    newCapacity = capacity + 5000; // Limit growth to prevent excessive allocation
+                }
+                
+                bytes memory newIds = new bytes(newCapacity * 3);
+                
+                // Copy existing data
+                for (uint256 j = 0; j < populatedBinCount * 3; j++) {
+                    newIds[j] = ids[j];
+                }
+                
+                ids = newIds;
+                capacity = newCapacity;
+            }
+
+            // Store the bin id using assembly for efficiency
+            uint256 memSlot;
+            assembly {
+                memSlot := add(add(ids, 0x20), mul(populatedBinCount, 3))
+                let memValue := shl(232, id)
+                mstore(memSlot, memValue)
+            }
+            
+            ++populatedBinCount;
+            
+            // Safety check to prevent infinite loops
+            if (i > 50000) break; // Reasonable upper bound for iterations
+        }
+
+        // Resize the array to the actual size
+        assembly {
+            mstore(ids, mul(3, populatedBinCount))
+        }
+
+        return ids;
+    }
+
+    /**
      * @notice Fetches the non-empty bins reserves of a liquidity book pair from [start, end].
      *  If length is specified, it will return the first `length` non-empty bins.
      * @param pair The liquidity book pair.
@@ -142,9 +219,9 @@ library NonEmptyBinHelper {
         if (id == 0) id = pair.getActiveId();
 
         bytes memory idsLeft =
-            lengthLeft == 0 ? new bytes(0) : getPopulatedBinsId(pair, lengthRight == 0 ? id : id - 1, 0, lengthLeft);
+            lengthLeft == 0 ? new bytes(0) : getPopulatedBinsIdOptimized(pair, lengthRight == 0 ? id : id - 1, 0, lengthLeft);
         bytes memory idsRight =
-            lengthRight == 0 ? new bytes(0) : getPopulatedBinsId(pair, id, type(uint24).max, lengthRight);
+            lengthRight == 0 ? new bytes(0) : getPopulatedBinsIdOptimized(pair, id, type(uint24).max, lengthRight);
 
         uint256 populatedBinCountLeft = idsLeft.length / 3;
         uint256 populatedBinCountRight = idsRight.length / 3;

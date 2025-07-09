@@ -163,7 +163,7 @@ contract TestLiquidityHelper is TestHelper {
         }
     }
 
-    function test_GetSharesForAmountsAndAmountsForShares() public {
+    function test_GetSharesForAmountsAndAmountsForShares() public view {
         uint24 activeId = lbPair0.getActiveId();
 
         uint256[] memory ids = new uint256[](11);
@@ -195,7 +195,7 @@ contract TestLiquidityHelper is TestHelper {
         }
     }
 
-    function test_GetLiquiditiesForAmountsAndAmountsForLiquidities() public {
+    function test_GetLiquiditiesForAmountsAndAmountsForLiquidities() public view {
         uint24 activeId = lbPair0.getActiveId();
 
         uint256[] memory ids = new uint256[](11);
@@ -238,7 +238,7 @@ contract TestLiquidityHelper is TestHelper {
         }
     }
 
-    function test_GetLiquiditiesForSharesAndSharesForLiquidities() public {
+    function test_GetLiquiditiesForSharesAndSharesForLiquidities() public view {
         uint24 activeId = lbPair0.getActiveId();
 
         uint256[] memory ids = new uint256[](11);
@@ -276,9 +276,7 @@ contract TestLiquidityHelper is TestHelper {
         // Make sure the composition of the active id is ~50/50
         swapNbBins(lbPair0, true, 1);
 
-        (uint256[] memory aliceIds, uint256[] memory aliceShares) = addLiquidity(alice, lbPair0, 1e18, 20e6, 4, 4);
-
-        uint256[] memory aliceLiquidities = helper.getLiquiditiesForShares(lbPair0, aliceIds, aliceShares);
+        (uint256[] memory aliceIds,) = addLiquidity(alice, lbPair0, 1e18, 20e6, 4, 4);
 
         (uint256[] memory aliceAmountsX, uint256[] memory aliceAmountsY) = helper.getAmountsOf(lbPair0, alice, aliceIds);
 
